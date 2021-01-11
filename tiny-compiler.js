@@ -43,7 +43,9 @@ function tokenizer (input) {
             })
             continue
         }
+        throw new TypeError('I dont know what this character is' + char)
     }
+    return tokens
 }
 
 function parser(tokens){
