@@ -167,7 +167,59 @@ function traverser (ast, visitor) {
 }
 
 function transformer (ast) {
+    let newAst = {
+        type: 'program',
+        body: []
+    }
 
+    ast._context = newAst.body
+
+    traverser(ast, {
+        NumberLiteral: {
+            enter(node, parent) {
+                parent._context.push({
+                    type: 'NumberLiteral',
+                    value: node.value
+                })
+            }
+        },
+        StringLiteral: {
+            enter(node, parent) {
+                parent._context.push({
+                    type: 'StringLiteral',
+                    value: node.value
+                })
+            }
+        },
+        CallExpression: {
+            enter(node, parent) {
+                // 创建新的CallExpression节点，其包含一个嵌套的Identifier节点
+                let expression = {
+                    type: 'callExpression',
+                    callee: {
+                        type: 'Identifier',
+                        name: node.name
+                    },
+                    arguments: []
+                }
+                // 在原来的CallExpression节点创建一个新的context来引用expression的arguments
+                // 这样就能向arguments里添加参数
+                node._context = expression.arguments
+                if(parent.type !== 'CallExpression') {
+                    // 用ExpressionStatement节点包裹CallExpression
+                    // 原因是，在JavaScript中，顶层CallExpression是加上是声明
+                    expression = {
+                        type: 'expressionStatement', 
+                        expression: expression
+                    }
+                }
+                // 把（可能被包裹的）callExpression添加到parent的context
+                parent._context.push(expression)
+            }
+        }
+    })
+
+    return newAst
 }
 
 function codeGenerator (node) {
