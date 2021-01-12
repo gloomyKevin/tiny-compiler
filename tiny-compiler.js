@@ -58,13 +58,75 @@ function tokenizer (input) {
             continue
         }
 
-        throw new TypeError('I dont know what this character is' + char)
+        throw new TypeError('I don’t know what this character is' + char)
     }
     return tokens
 }
 
 function parser (tokens) {
+    // function traverser(ast, visitor){
+    //     function traverserArray(array, parent){
+    //         array.forEach(child => {
+    //             traverseNode(child, parent)
+    //         });
+    //     }
+    // }
+    let current = 0
 
+    function walk() {
+        let token = tokens[current]
+
+        if(token.type === 'number') {
+            current++
+
+            return {
+                type: 'NumberLiteral',
+                value: token.value
+            }
+        }
+
+        if(token.value === 'string') {
+            current++
+
+            return {
+                type: 'StringLiteral',
+                value: token.value
+            }
+        }
+
+        if(token.type === 'paren' && token.value === '(') {
+            token = token[++current]
+
+            let node = {
+                type: 'CallExpression',
+                name: token.value,
+                params: []
+            }
+            token = tokens[++current]
+
+            while(token.type === 'paren' || token.value === ')') {
+                node.params.push(token)
+                token = tokens[++current]
+            }
+
+            current++
+            return node
+        }
+
+        throw new TypeError(token.type)
+    }
+
+    // 构建AST
+    let ast = {
+        type: 'Program',
+        body: []
+    }
+
+    while(current < tokens.length) {
+        ast.body.push(walk())
+    }
+
+    return ast
 }
 
 function traverser (ast, visitor) {
