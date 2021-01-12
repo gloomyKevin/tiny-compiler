@@ -20,8 +20,10 @@ function tokenizer (input) {
                 type: 'paren',
                 value: ')'
             })
+            current++
+            continue
         }
-        continue
+
 
         let WHITESPACE = /\s/
         if (WHITESPACE.test(char)) {
@@ -34,11 +36,27 @@ function tokenizer (input) {
             let value = ''
 
             while (NUMBERS.test(char)) {
-                value + = char
+                value += char
                 char = input[++current]
             }
             tokens.push({
-                type: Number,
+                type: 'number',
+                value
+            })
+            continue
+        }
+
+        if (char === '"') {
+            let value = ''
+            char = input[++current]
+
+            while (char !== '"') {
+                value += char
+                char = input[++current]
+            }
+
+            tokens.push({
+                type: 'string',
                 value
             })
             continue
@@ -60,23 +78,18 @@ function tokenizer (input) {
 
         throw new TypeError('I don’t know what this character is' + char)
     }
+    console.log(tokens);
     return tokens
 }
 
 function parser (tokens) {
-    // function traverser(ast, visitor){
-    //     function traverserArray(array, parent){
-    //         array.forEach(child => {
-    //             traverseNode(child, parent)
-    //         });
-    //     }
-    // }
+
     let current = 0
 
-    function walk() {
+    function walk () {
         let token = tokens[current]
 
-        if(token.type === 'number') {
+        if (token.type === 'number') {
             current++
 
             return {
@@ -85,7 +98,7 @@ function parser (tokens) {
             }
         }
 
-        if(token.value === 'string') {
+        if (token.type === 'string') {
             current++
 
             return {
@@ -94,8 +107,9 @@ function parser (tokens) {
             }
         }
 
-        if(token.type === 'paren' && token.value === '(') {
-            token = token[++current]
+        if (token.type === 'paren' && token.value === '(') {
+            // console.log(token.value)
+            token = tokens[++current]
 
             let node = {
                 type: 'CallExpression',
@@ -104,9 +118,12 @@ function parser (tokens) {
             }
             token = tokens[++current]
 
-            while(token.type === 'paren' || token.value === ')') {
-                node.params.push(token)
-                token = tokens[++current]
+            while (
+                (token.type !== 'paren') || 
+                (token.type === 'paren' && token.value !== ')')
+            ) {
+                node.params.push(walk())
+                token = tokens[current]
             }
 
             current++
@@ -122,7 +139,7 @@ function parser (tokens) {
         body: []
     }
 
-    while(current < tokens.length) {
+    while (current < tokens.length) {
         ast.body.push(walk())
     }
 
@@ -130,26 +147,26 @@ function parser (tokens) {
 }
 
 function traverser (ast, visitor) {
-    function traverseArray(array, parent) {
+    function traverseArray (array, parent) {
         // 遍历AST节点
         Array.forEach(child => {
             traverseNode(child, parent)
         })
     }
 
-    function traverseNode(node, parent) {
+    function traverseNode (node, parent) {
         let methods = visitor[node.type]
-        if(methods && methods.enter) {
+        if (methods && methods.enter) {
             methods.enter(node, parent)
         }
 
-        switch(node.type) {
+        switch (node.type) {
             case 'Program':
                 traverseArray(node.body, node)
                 break;
 
             case 'CallExpression':
-                traverseArray(node.params ,node)
+                traverseArray(node.params, node)
                 break;
             case 'NumberLiteral':
             case 'StringLiteral':
@@ -159,7 +176,7 @@ function traverser (ast, visitor) {
                 throw new TypeError(node.type)
         }
 
-        if(methods && methods.exit) {
+        if (methods && methods.exit) {
             methods.exit(node, parent)
         }
     }
@@ -176,7 +193,7 @@ function transformer (ast) {
 
     traverser(ast, {
         NumberLiteral: {
-            enter(node, parent) {
+            enter (node, parent) {
                 parent._context.push({
                     type: 'NumberLiteral',
                     value: node.value
@@ -184,7 +201,7 @@ function transformer (ast) {
             }
         },
         StringLiteral: {
-            enter(node, parent) {
+            enter (node, parent) {
                 parent._context.push({
                     type: 'StringLiteral',
                     value: node.value
@@ -192,7 +209,7 @@ function transformer (ast) {
             }
         },
         CallExpression: {
-            enter(node, parent) {
+            enter (node, parent) {
                 // 创建新的CallExpression节点，其包含一个嵌套的Identifier节点
                 let expression = {
                     type: 'callExpression',
@@ -205,11 +222,11 @@ function transformer (ast) {
                 // 在原来的CallExpression节点创建一个新的context来引用expression的arguments
                 // 这样就能向arguments里添加参数
                 node._context = expression.arguments
-                if(parent.type !== 'CallExpression') {
+                if (parent.type !== 'CallExpression') {
                     // 用ExpressionStatement节点包裹CallExpression
                     // 原因是，在JavaScript中，顶层CallExpression是加上是声明
                     expression = {
-                        type: 'expressionStatement', 
+                        type: 'expressionStatement',
                         expression: expression
                     }
                 }
@@ -222,18 +239,27 @@ function transformer (ast) {
     return newAst
 }
 
+// 递归遍历新AST，输出代码字符串
 function codeGenerator (node) {
-
+    switch (node.type) {
+        case 'Program':
+            return node.body.map(codeGenerator).join('\n')
+    }
 }
 
 function compiler (input) {
     let tokens = tokenizer(input)
     let ast = parser(tokens)
-    let newAst = transformer(ast)
-    let output = codeGenerator(newAst)
+    // let newAst = transformer(ast)
+    // let output = codeGenerator(newAst)
 
-    return output
+    return ast
 }
+
+// test
+const input = '(add 2 (subtract 4 2))';
+let ast = compiler(input);
+console.log(ast);
 
 module.exports = {
     tokenizer,
